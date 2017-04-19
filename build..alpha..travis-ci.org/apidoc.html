@@ -1,0 +1,216 @@
+<div class="apidocDiv">
+<style>
+/*csslint
+*/
+.apidocDiv {
+    background: #fff;
+    font-family: Arial, Helvetica, sans-serif;
+}
+.apidocDiv a[href] {
+    color: #33f;
+    font-weight: bold;
+    text-decoration: none;
+}
+.apidocDiv a[href]:hover {
+    text-decoration: underline;
+}
+.apidocCodeCommentSpan {
+    background: #bbf;
+    color: #000;
+    display: block;
+}
+.apidocCodeKeywordSpan {
+    color: #d00;
+    font-weight: bold;
+}
+.apidocCodePre {
+    background: #eef;
+    border: 1px solid;
+    color: #777;
+    padding: 5px;
+    white-space: pre-wrap;
+}
+.apidocFooterDiv {
+    margin-top: 20px;
+    text-align: center;
+}
+.apidocModuleLi {
+    margin-top: 10px;
+}
+.apidocSectionDiv {
+    border-top: 1px solid;
+    margin-top: 20px;
+}
+.apidocSignatureSpan {
+    color: #777;
+    font-weight: bold;
+}
+</style>
+<h1>api documentation for
+    <a
+
+        href="https://github.com/patrick-steele-idem/morphdom#readme"
+
+    >morphdom (v2.3.2)</a>
+</h1>
+<h4>Morph a DOM tree to another DOM tree (no virtual DOM needed)</h4>
+<div class="apidocSectionDiv"><a
+    href="#apidoc.tableOfContents"
+    id="apidoc.tableOfContents"
+><h1>table of contents</h1></a><ol>
+
+    <li class="apidocModuleLi"><a href="#apidoc.module.morphdom">module morphdom</a><ol>
+
+        <li>
+
+            <a class="apidocElementLiA" href="#apidoc.element.morphdom.morphdom">
+            function <span class="apidocSignatureSpan"></span>morphdom
+            <span class="apidocSignatureSpan">(fromNode, toNode, options)</span>
+            </a>
+
+        </li>
+
+    </ol></li>
+
+</ol></div>
+
+<div class="apidocSectionDiv">
+<h1><a href="#apidoc.module.morphdom" id="apidoc.module.morphdom">module morphdom</a></h1>
+
+
+    <h2>
+        <a href="#apidoc.element.morphdom.morphdom" id="apidoc.element.morphdom.morphdom">
+        function <span class="apidocSignatureSpan"></span>morphdom
+        <span class="apidocSignatureSpan">(fromNode, toNode, options)</span>
+        </a>
+    </h2>
+    <ul>
+    <li>description and source-code<pre class="apidocCodePre">function morphdom(fromNode, toNode, options) {
+    if (!options) {
+        options = {};
+    }
+
+    if (typeof toNode === &#x27;string&#x27;) {
+        if (fromNode.nodeName === &#x27;#document&#x27; || fromNode.nodeName === &#x27;HTML&#x27;) {
+            var toNodeHtml = toNode;
+            toNode = doc.createElement(&#x27;html&#x27;);
+            toNode.innerHTML = toNodeHtml;
+        } else {
+            toNode = toElement(toNode);
+        }
+    }
+
+    var getNodeKey = options.getNodeKey || defaultGetNodeKey;
+    var onBeforeNodeAdded = options.onBeforeNodeAdded || noop;
+    var onNodeAdded = options.onNodeAdded || noop;
+    var onBeforeElUpdated = options.onBeforeElUpdated || noop;
+    var onElUpdated = options.onElUpdated || noop;
+    var onBeforeNodeDiscarded = options.onBeforeNodeDiscarded || noop;
+    var onNodeDiscarded = options.onNodeDiscarded || noop;
+    var onBeforeElChildrenUpdated = options.onBeforeElChildrenUpdated || noop;
+    var childrenOnly = options.childrenOnly === true;
+
+    // This object is used as a lookup to quickly find all keyed elements in the original DOM tree.
+    var fromNodesLookup = {};
+    var keyedRemovalList;
+
+    function addKeyedRemoval(key) {
+        if (keyedRemovalList) {
+            keyedRemovalList.push(key);
+        } else {
+            keyedRemovalList = [key];
+        }
+    }
+
+    function walkDiscardedChildNodes(node, skipKeyedNodes) {
+        if (node.nodeType === ELEMENT_NODE) {
+            var curChild = node.firstChild;
+            while (curChild) {
+
+                var key = undefined;
+
+                if (skipKeyedNodes &#x26;&#x26; (key = getNodeKey(curChild))) {
+                    // If we are skipping keyed nodes then we add the key
+                    // to a list so that it can be handled at the very end.
+                    addKeyedRemoval(key);
+                } else {
+                    // Only report the node as discarded if it is not keyed. We do this because
+                    // at the end we loop through all keyed elements that were unmatched
+                    // and then discard them in one final pass.
+                    onNodeDiscarded(curChild);
+                    if (curChild.firstChild) {
+                        walkDiscardedChildNodes(curChild, skipKeyedNodes);
+                    }
+                }
+
+                curChild = curChild.nextSibling;
+            }
+        }
+    }
+
+<span class="apidocCodeCommentSpan">    /**
+     * Removes a DOM node out of the original DOM
+     *
+     * @param  {Node} node The node to remove
+     * @param  {Node} parentNode The nodes parent
+     * @param  {Boolean} skipKeyedNodes If true then elements with keys will be skipped and not discarded.
+     * @return {undefined}
+     */
+</span>    function removeNode(node, parentNode, skipKeyedNodes) {
+        if (onBeforeNodeDiscarded(node) === false) {
+            return;
+        }
+
+        if (parentNode) {
+            parentNode.removeChild(node);
+        }
+
+        onNodeDiscarded(node);
+        walkDiscardedChildNodes(node, skipKeyedNodes);
+    }
+
+    // // TreeWalker implementation is no faster, but keeping this around in case this changes in the future
+    // function indexTree(root) {
+    //     var treeWalker = document.createTreeWalker(
+    //         root,
+    //         NodeFilter.SHOW_ELEMENT);
+    //
+    //     var el;
+    //     while((el = treeWalker.nextNode())) {
+    //         var key = getNodeKey(el);
+    //         if (key) {
+    //             fromNodesLookup[key] = el;
+    //         }
+    //     }
+    // }
+
+    // // NodeIterator implementation is no faster, but keeping this around in case this changes in the future
+    //
+    // function indexTree(node) {
+    //     var nodeIterator = document.createNodeIterator(node, NodeFilter.SHOW_ELEMENT);
+    //     var el;
+    //     while((el = nodeIterator.nextNode())) {
+    //         var key = getNodeKey(el);
+    //         if (key) {
+    //             fromNodesLookup[key] = el;
+    //         }
+    //     }
+    // }
+
+    function indexTree(node) {
+        if (node.nodeType === ELEMENT_NODE) {
+            var curChild = node.firstChild;
+            while (curChild) {
+                v ...</pre></li>
+    <li>example usage<pre class="apidocCodePre">n/a</pre></li>
+    </ul>
+
+
+</div>
+
+<div class="apidocFooterDiv">
+    [ this document was created with
+    <a href="https://github.com/kaizhu256/node-utility2" target="_blank">utility2</a>
+    ]
+</div>
+</div>
